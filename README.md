@@ -4,7 +4,7 @@
 
 A macOS menu bar pane for **DeepSeek V4** via [`dwarfstar4`](https://github.com/antirez/ds4).
 
-It launches, supervises, and monitors a local ds4 server, lets you pick **V4 Pro** or **V4 Flash (0731)** with up to **1M** context, and shows resource use.
+It launches, supervises, and monitors a local ds4 server, lets you pick **V4 Pro (0813)** or **V4 Flash (0731)** with up to **1M** context, and shows resource use.
 
 **Launch Pi, Claude Code or BYOC (Bring Your Own CLI) for local agentic coding.**
 
@@ -56,6 +56,7 @@ What it is **not**:
 
 ```sh
 git submodule update --init --recursive    # fetch ds4 into external/ds4
+bash scripts/apply-ds4-patches.sh           # THINK_MAX prefix (antirez/ds4#635)
 make -C external/ds4 -j ds4-server          # build the ds4-server binary
 DS4_DIR="$PWD/external/ds4" swift run        # build + run the dev app against the submodule
 ```
@@ -75,7 +76,7 @@ DeepSeek V4 is memory-hungry so DS4 Control gates feasibility before launching.
 
 | Variant | Quant | RAM | Notes |
 | --- | --- | --- | --- |
-| V4 Pro | pro-imatrix | **≥ 512 GiB required** | Anything below is blocked. |
+| V4 Pro (0813) | pro-imatrix | **≥ 512 GiB required** | Anything below is blocked. |
 | V4 Flash (0731) | q4-imatrix | ≥ 256 GiB | Standard. |
 | V4 Flash (0731) | q2-imatrix | 96 GiB minimum | 96–127 GiB requires raising the Metal wired limit (see below). |
 
@@ -89,13 +90,26 @@ and a "Metal wired limit help…" window walks through it step by step — inclu
 
 **Default context** is `1,000,000` for Pro and for Flash on ≥ 128 GiB; Flash on 96–127 GiB defaults to `256,000`. Max Think is unavailable below 128 GiB, including in the built-in chat and coding-agent launcher. You can otherwise override the context in Settings, subject to the physical-memory and wired-limit checks above.
 
+## Thinking
+
+Flash 0731 and Pro 0813 share DeepSeek's three-tier encoder. DS4 Control exposes three rungs and skips official **high**:
+
+| Official `reasoning_effort` | Prompt prefix | DS4 Control |
+| --- | --- | --- |
+| *(thinking off)* | none | **Instant** |
+| `low` (default) | none | **Standard** |
+| `high` | `Absolute maximum…` | not offered |
+| `max` | `Beyond maximum — …` | **Max Think** |
+
+Unpatched [antirez/ds4](https://github.com/antirez/ds4) maps `reasoning_effort: max` to official **high**. This app patches THINK_MAX (`patches/ds4-think-max.patch`) so Max Think is official **max**. Every other effort name (`low` / `medium` / `high` / `xhigh`) stays official **low**. Max Think also needs `--ctx` ≥ 393,216 — below that, ds4 silently drops to Standard; the app prompts to bump context. The bundled pi `models.json` maps `xhigh` → `max`; Claude Max Think sets `CLAUDE_CODE_EFFORT_LEVEL=max`.
+
 ## Performance
 
 Measured single-stream generation throughput on a **Mac Studio M3 Ultra** (512 GiB):
 
 | Model | Throughput |
 |---|---|
-| V4 Pro | **~14 tok/s** |
+| V4 Pro (0813) | **~14 tok/s** |
 | V4 Flash (0731) | **~35 tok/s** |
 
 Varies with context length, prompt, and the Metal wired limit.

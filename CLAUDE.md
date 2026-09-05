@@ -4,21 +4,28 @@
 
 A macOS **menu-bar control pane** for **DeepSeek V4** running locally on Apple Silicon via
 [antirez/ds4](https://github.com/antirez/ds4). It launches, supervises, and monitors a local
-`ds4-server` child process; lets you pick **V4 Pro** or **V4 Flash** (0731 weights); downloads GGUF weights;
+`ds4-server` child process; lets you pick **V4 Pro** (0813) or **V4 Flash** (0731); downloads GGUF weights;
 shows live unified-memory / GPU / CPU / power widgets; provides a built-in chat; and can open a
 coding agent (pi or claude) in Terminal pointed at the local server.
 
 It does **no embedded inference** — all inference is delegated to `ds4-server`. This app only
 supervises that process and surfaces system metrics + a chat/agent front end.
 
-## DeepSeek V4 preview maintenance
+## DeepSeek V4 release maintenance
 
-The current 0731 DeepSeek V4 GGUFs are preview artifacts, not the final GA release. When V4
-leaves preview, update the pinned GGUF names/URLs and `external/ds4` revision together. Re-read
-the GA files' exact byte sizes into `Quant.ggufBytes`, verify the Metal context-allocation formula,
-shared graph-workspace formula, and persistent backend-scratch bounds against that ds4 revision,
-and refresh the feasibility/variant tests and documented memory tiers.
-Do not carry the preview size constants or allocator assumptions into a GA release unchanged.
+The app pins the official Flash 0731 and Pro 0813 GGUF generations. Pro 0813's Hub LFS metadata
+reports exactly 464,627,334,560 bytes — the same byte size as the preview file but a different
+content hash — and this value is baked into `Quant.ggufBytes`.
+
+`external/ds4` is the upstream [antirez/ds4](https://github.com/antirez/ds4) submodule, pinned to
+the 0813-support commit `c35cf38` (DeepSeek-V4-Pro-0813 quant in `download_model.sh` + QA oracle).
+THINK_MAX is applied on top via `patches/ds4-think-max.patch` (`scripts/apply-ds4-patches.sh`)
+because upstream still emits the official 0731/0813 **high** prefix for `reasoning_effort: max`
+(antirez/ds4#635). The Metal context-allocation formula, shared graph workspace,
+per-session graph allocations, and persistent backend-scratch bounds were verified unchanged
+between the previous pin (84cc882) and `c35cf38`, so `Feasibility` and the documented memory tiers
+carry over as-is. If a future ds4 bump changes any allocator or Pro-shape assumption, re-verify
+`Feasibility.swift` and the feasibility/memory-tier tests before release.
 
 ## Stack
 
@@ -34,6 +41,7 @@ From the repo root (`/Users/luke/dev26/ds4_workspace/ds4-control`):
 ```bash
 swift build          # build
 swift test           # run all tests (authoritative — trust the compiler over SourceKit squiggles)
+bash scripts/apply-ds4-patches.sh && make -C external/ds4 -j ds4-server
 DS4_DIR="$PWD/external/ds4" .build/debug/DS4Control     # run the dev app
 ```
 
